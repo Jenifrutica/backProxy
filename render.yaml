@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: jenilarper-proxy-inventory
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./docker/inventory.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: AUDIT_HUB_URL
+        value: https://jenilarper-proxy-audit.onrender.com
+
+  - type: web
+    name: jenilarper-proxy-orders
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./docker/orders.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: AUDIT_HUB_URL
+        value: https://jenilarper-proxy-audit.onrender.com
+
+  - type: web
+    name: jenilarper-proxy-payments
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./docker/payments.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: AUDIT_HUB_URL
+        value: https://jenilarper-proxy-audit.onrender.com
+
+  - type: web
+    name: jenilarper-proxy-audit
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    dockerfilePath: ./docker/audit.Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: INVENTORY_URL
+        value: https://jenilarper-proxy-inventory.onrender.com
+      - key: ORDERS_URL
+        value: https://jenilarper-proxy-orders.onrender.com
+      - key: PAYMENTS_URL
+        value: https://jenilarper-proxy-payments.onrender.com

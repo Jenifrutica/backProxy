@@ -1,0 +1,14 @@
+server:
+  port: ${PORT:8082}
+
+spring:
+  application:
+    name: orders-service
+
+audit:
+  hub:
+    url: ${AUDIT_HUB_URL:http://localhost:8084}
+
+logging:
+  level:
+    dev.jenilarper.proxy: INFO
