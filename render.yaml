@@ -58,3 +58,26 @@ services:
         value: https://jenilarper-proxy-orders.onrender.com
       - key: PAYMENTS_URL
         value: https://jenilarper-proxy-payments.onrender.com
+
+  # Single public entrypoint: serves the dashboard and proxies /api/* to the
+  # four services above. The code lives in the frontProxy repository.
+  - type: web
+    name: jenilarper-proxy-app
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    repo: https://github.com/Jenifrutica/frontProxy
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: INVENTORY_URL
+        value: https://jenilarper-proxy-inventory.onrender.com
+      - key: ORDERS_URL
+        value: https://jenilarper-proxy-orders.onrender.com
+      - key: PAYMENTS_URL
+        value: https://jenilarper-proxy-payments.onrender.com
+      - key: AUDIT_URL
+        value: https://jenilarper-proxy-audit.onrender.com

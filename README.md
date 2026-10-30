@@ -1,22 +1,29 @@
 # Backend · Proxy de auditoría y logging
 
-## Cómo se aplica
+## Cómo se aplican los requisitos
 
-### Render
+| Requisito | Cómo se aplica | Archivo |
+|---|---|---|
+| Interfaz genérica `MicroserviceProxy<T>` con `execute(String operation, Object... params): T` | Se declara una interfaz con un único método. Los servicios reales y los proxies la implementan, y los controladores dependen solo de la interfaz, nunca de una implementación concreta. | `proxy-runtime/.../MicroserviceProxy.java` |
+| `InventoryService`, `OrderService` y `PaymentService` reales con operaciones implementadas | Cada servicio implementa la interfaz y despacha la operación con un `OperationCatalog` (`Map<String, OperationHandler>`). El estado vive en mapas concurrentes en memoria. | `InventoryService.java`, `OrderService.java`, `PaymentService.java` |
+| `LoggingProxy` que envuelve cualquier servicio y registra inicio, duración, resultado y error con stack resumido | El proxy recibe un `MicroserviceProxy<T>` delegado. Genera un `requestId` UUID, toma `Instant` y `nanoTime`, delega la llamada y publica un `InterceptionRecord`. Si falla, captura tipo, mensaje y las primeras 8 frames del stack, y vuelve a lanzar la excepción. | `proxy-runtime/.../LoggingProxy.java` |
+| Cada log incluye `serviceId`, `operation`, `durationMs`, `status`, `requestId` UUID y `timestamp` | `InterceptionRecord` es un record con esos seis campos obligatorios. `status` es el enum `SUCCESS`/`ERROR` y `timestamp` se toma al inicio de la llamada. | `proxy-runtime/.../InterceptionRecord.java` |
+| `POST /api/services/inventory/{operation}` pasa por el logging proxy | El controlador inyecta el bean `inventoryProxy` (el `LoggingProxy`), no el servicio real. Cada petición ejecuta `proxy.execute(operation, params)`. | `InventoryEndpoint.java` |
+| `POST /api/services/orders/{operation}` pasa por el logging proxy | Mismo esquema: el controlador depende de `ordersProxy` y toda llamada queda auditada. | `OrdersEndpoint.java` |
+| `POST /api/services/payments/{operation}` pasa por el logging proxy | Mismo esquema con `paymentsProxy`; además el servicio inyecta fallas antes de despachar la operación. | `PaymentsEndpoint.java` |
+| `GET /api/metrics/summary` con total, tasa de error y promedio por servicio | `InMemoryAuditLedger` agrupa los registros por `serviceId`, cuenta llamadas y errores, calcula `errorRate` y promedia `durationMs`. | `MetricsController.java` + `InMemoryAuditLedger.java` |
+| `GET /api/metrics/logs?service=&status=&from=&to=` con filtros y paginación | El ledger filtra por servicio, estado e instantes ISO-8601, y pagina con `page`/`size`. Devuelve `content`, `totalElements` y `totalPages`. | `MetricsController.java` + `InMemoryAuditLedger.java` |
+| 10% de fallas intencionales en `PaymentService` | `PaymentFailureInjector` lanza `PaymentDeclinedException` (HTTP 422) en el 10% de las llamadas. La falla vive en el servicio real, no en el proxy, para que el proxy la registre como `ERROR` con stack trace. | `PaymentFailureInjector.java` |
+| `POST /api/metrics/simulate-load` con 50 llamadas aleatorias | `SimulateLoadService` elige servicio y operación al azar y ejecuta 50 POST contra los endpoints públicos. Al entrar por la API, cada llamada atraviesa el `LoggingProxy` y genera su log. | `SimulateLoadService.java` |
 
-1. **New + → Blueprint**.
-2. Repositorio: `Jenifrutica/backProxy`.
-3. **Blueprint Name:** `proxy-backend`.
-4. **Branch:** `main`.
-5. **Blueprint Path:** `render.yaml`.
-6. **Deploy Blueprint**.
+**Extras incluidos:** CORS para el dashboard, latencia de procesamiento simulada, `inputParams` y `responseJson` para el detalle del front, y `/health` para Render.
 
-Crea cuatro Web Services en plan gratuito: `jenilarper-proxy-inventory`, `jenilarper-proxy-orders`, `jenilarper-proxy-payments` y `jenilarper-proxy-audit`. Las variables de entorno ya están en `render.yaml`.
+## Despliegue
 
-Verificación:
+El `render.yaml` de este repositorio define los cuatro servicios y también el gateway del front (repo `frontProxy`). Al sincronizar el Blueprint se crea una única URL pública:
 
-```bash
-curl https://jenilarper-proxy-audit.onrender.com/health
+```
+https://jenilarper-proxy-app.onrender.com
 ```
 
 ### Local
@@ -30,21 +37,3 @@ java -jar payments-service/target/payments-service-1.0.0.jar &
 ```
 
 Puertos: 8081 inventario, 8082 pedidos, 8083 pagos, 8084 auditoría.
-
-## Cumplimiento de requisitos
-
-| Requisito | ¿Incluido? | Dónde |
-|---|---|---|
-| Interfaz genérica `MicroserviceProxy<T>` con `execute(String operation, Object... params): T` | ✅ | `proxy-runtime/.../MicroserviceProxy.java` |
-| `InventoryService`, `OrderService`, `PaymentService` reales con operaciones implementadas | ✅ | `inventory-service`, `orders-service`, `payments-service` |
-| `LoggingProxy` que envuelve cualquier servicio, mide duración y registra resultado o error con stack resumido | ✅ | `proxy-runtime/.../LoggingProxy.java` |
-| Cada log incluye `serviceId`, `operation`, `durationMs`, `status`, `requestId` UUID y `timestamp` | ✅ | `proxy-runtime/.../InterceptionRecord.java` |
-| `POST /api/services/inventory/{operation}` pasa por el proxy | ✅ | `InventoryEndpoint.java` |
-| `POST /api/services/orders/{operation}` pasa por el proxy | ✅ | `OrdersEndpoint.java` |
-| `POST /api/services/payments/{operation}` pasa por el proxy | ✅ | `PaymentsEndpoint.java` |
-| `GET /api/metrics/summary` con total, tasa de error y promedio por servicio | ✅ | `MetricsController.java` |
-| `GET /api/metrics/logs?service=&status=&from=&to=` con filtros y paginación | ✅ | `MetricsController.java` + `InMemoryAuditLedger.java` |
-| 10% de fallas intencionales en `PaymentService` | ✅ | `PaymentFailureInjector.java` |
-| `POST /api/metrics/simulate-load` con 50 llamadas aleatorias | ✅ | `SimulateLoadService.java` |
-
-**Extras incluidos:** `inputParams` y `responseJson` para el detalle del front, CORS para el dashboard, latencia de procesamiento simulada y `/health` para Render.
