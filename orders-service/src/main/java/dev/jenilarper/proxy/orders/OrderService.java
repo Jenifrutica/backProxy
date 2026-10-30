@@ -3,6 +3,7 @@ package dev.jenilarper.proxy.orders;
 import dev.jenilarper.proxy.runtime.MicroserviceProxy;
 import dev.jenilarper.proxy.runtime.OperationHandler;
 import dev.jenilarper.proxy.runtime.Parameters;
+import dev.jenilarper.proxy.runtime.ProcessingTime;
 import dev.jenilarper.proxy.runtime.ServiceOperationException;
 import dev.jenilarper.proxy.runtime.UnknownOperationException;
 
@@ -33,6 +34,7 @@ public class OrderService implements MicroserviceProxy<Object> {
         if (handler == null) {
             throw new UnknownOperationException(operation);
         }
+        ProcessingTime.simulate();
         return handler.handle(Parameters.input(params));
     }
 
